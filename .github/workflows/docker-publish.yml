@@ -2,10 +2,10 @@ name: Docker Build & Publish (Multi-Arch)
 
 on:
   push:
-    # 当推送带有 v 开头的标签时触发（例如 v1.0.0）
-    tags: [ 'v*.*.*' ]
+    # 当代码推送到 main 分支时触发构建
+    branches: [ "main" ]
   pull_request:
-    # PR 触发用于测试构建，不会推送
+    # PR 触发仅用于测试构建，不会推送镜像
     branches: [ "main" ]
 
 env:
@@ -41,7 +41,7 @@ jobs:
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }} # 直接使用内置 Token 即可
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # 4. 提取元数据（自动生成标签）
       - name: Extract Docker metadata
@@ -52,7 +52,7 @@ jobs:
             ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=latest
-            type=semver,pattern={{version}}
+            type=sha,prefix=git- # 使用 commit SHA 作为标签，便于追溯
 
       # 5. 构建并推送
       - name: Build and push Docker image (Multi-Arch)
