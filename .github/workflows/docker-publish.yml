@@ -2,15 +2,15 @@ name: Docker Build & Publish (Multi-Arch)
 
 on:
   push:
-    # Publish semver tags as releases.
+    # 当推送带有 v 开头的标签时触发（例如 v1.0.0）
     tags: [ 'v*.*.*' ]
   pull_request:
+    # PR 触发用于测试构建，不会推送
     branches: [ "main" ]
 
 env:
   GHCR_REGISTRY: ghcr.io
-  DOCKERHUB_IMAGE: ednovas/dongguatv
-  # ghcr.io requires lowercase image names
+  # GHCR 镜像名 (自动使用你的 GitHub 用户名/仓库名，并转为小写)
   GHCR_IMAGE: ${{ github.repository_owner }}/dongguatv
 
 jobs:
@@ -18,64 +18,56 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write # 允许写入 GHCR
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 设置 QEMU 用于多架构模拟构建
+      # 1. 设置 QEMU，允许构建不同 CPU 架构的镜像
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
 
-      # 设置 Docker Buildx
+      # 2. 设置 Docker Buildx 构建器
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 登录 GitHub Container Registry
+      # 3. 登录 GHCR (仅在非 PR 事件下，即正式推送时)
       - name: Log into GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }} # 直接使用内置 Token 即可
 
-      # 登录 Docker Hub
-      - name: Log into Docker Hub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+      # 4. 提取元数据（自动生成标签）
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
             ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}
-            docker.io/${{ env.DOCKERHUB_IMAGE }}
           tags: |
             type=raw,value=latest
             type=semver,pattern={{version}}
 
-      # 多架构构建并推送
+      # 5. 构建并推送
       - name: Build and push Docker image (Multi-Arch)
         id: build-and-push
         uses: docker/build-push-action@v5
         with:
           context: .
-          # 支持的架构: AMD64 (x86_64), ARM64 (Apple M1/M2, 树莓派4), ARMv7 (树莓派3, 旧版ARM设备)
+          # 支持 amd64 (Intel/AMD), arm64 (M1/M2), arm/v7 (树莓派)
           platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' }} # PR 时不推送
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # 禁用 provenance 并使用 Docker manifest v2 格式 (兼容旧版 Docker)
+          # 兼容性设置：禁用 provenance 以支持旧版 Docker
           provenance: false
           sbom: false
           outputs: type=image,oci-mediatypes=false
