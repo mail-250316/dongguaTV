@@ -1,4 +1,4 @@
-# E视界 (DongguaTV Enhanced Edition)
+# E视界 (DongguaTV Enhanced Edition) 20260827
 
 现代流媒体聚合播放器，基于 Node.js + Express + Vue 3 构建。原版项目：[Minerchu/dongguaTV](https://github.com/Minerchu/dongguaTV)
 
